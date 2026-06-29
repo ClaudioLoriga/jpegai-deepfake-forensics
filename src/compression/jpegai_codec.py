@@ -1,10 +1,10 @@
 """
 JPEG AI encoder/decoder wrapper.
 Calls the official reference software CLI as subprocess.
-Must run inside the jpeg_ai_vm conda env or Docker container.
+Must run inside the jpeg_ai_vm conda env.
 
 Repo: https://gitlab.com/wg1/jpeg-ai/jpeg-ai-reference-software
-Setup: make configure && make build_test_libs   (Linux / Docker only)
+Setup: make configure && make build_test_libs
 """
 
 import subprocess

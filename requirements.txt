@@ -1,5 +1,9 @@
 # Core project dependencies (detectors, analysis, training, evaluation)
-# Works on macOS + Linux. Install with: pip install -r requirements.txt
+# Install with: pip install -r requirements.txt
+#
+# GPU — install PyTorch BEFORE this file:
+#   AMD  (ROCm):   pip install torch torchvision --extra-index-url https://download.pytorch.org/whl/rocm5.7
+#   NVIDIA (CUDA): pip install torch torchvision   (picks CUDA wheels automatically)
 
 # Deep learning
 torch>=2.2.0

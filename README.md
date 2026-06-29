@@ -15,9 +15,7 @@ Investigates how JPEG AI (ISO/IEC 6048-1) neural compression degrades state-of-t
 │   ├── analysis/                   # Frequency analysis utilities
 │   └── mitigation/                 # Fine-tuning and domain-adaptation code
 ├── scripts/
-│   └── compress_dataset.sh         # Batch compression script (Linux/Docker)
-├── docker/
-│   └── Dockerfile                  # JPEG AI environment for macOS / CI
+│   └── compress_dataset.sh         # Batch compression script
 ├── data/
 │   ├── original/                   # Raw dataset (real/ + fake/ subdirs)
 │   └── compressed/                 # JPEG AI outputs (bpp_010/ … bpp_200/)
@@ -33,12 +31,19 @@ Investigates how JPEG AI (ISO/IEC 6048-1) neural compression degrades state-of-t
 ```bash
 git clone <this-repo>
 cd jpegai-deepfake-forensics
+
+# AMD GPU (ROCm) — install PyTorch first:
+pip install torch torchvision --extra-index-url https://download.pytorch.org/whl/rocm5.7
+
+# NVIDIA GPU (CUDA) — install PyTorch first:
+# pip install torch torchvision
+
 pip install -r requirements.txt
 ```
 
 ### 2. Set up JPEG AI reference software
 
-**Linux (native):**
+**Linux native (recommended):**
 ```bash
 git clone https://gitlab.com/wg1/jpeg-ai/jpeg-ai-reference-software.git
 cd jpeg-ai-reference-software
@@ -48,9 +53,11 @@ make build_test_libs
 cd ..
 ```
 
-**macOS (Docker):**
+For AMD GPU (ROCm), replace the PyTorch wheel inside `jpeg_ai_vm` after `make configure`:
 ```bash
-docker build -t jpegai-codec -f docker/Dockerfile .
+conda activate jpeg_ai_vm
+pip install "torch==2.0.1+rocm5.4.2" "torchvision==0.15.2+rocm5.4.2" \
+    --extra-index-url https://download.pytorch.org/whl/rocm5.4.2
 ```
 
 ### 3. Place your dataset
@@ -65,16 +72,9 @@ Recommended: [FaceForensics++](https://github.com/ondyari/FaceForensics) subset 
 
 ### 4. Run JPEG AI compression
 
-**Linux:**
 ```bash
 conda activate jpeg_ai_vm
 bash scripts/compress_dataset.sh data/original data/compressed
-```
-
-**macOS (Docker):**
-```bash
-docker run --rm -v $(pwd)/data:/workspace/project/data jpegai-codec \
-    bash scripts/compress_dataset.sh data/original data/compressed
 ```
 
 ### 5. Run the notebook

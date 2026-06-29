@@ -2,7 +2,7 @@
 # compress_dataset.sh
 # Batch-compress a deepfake dataset with JPEG AI at multiple BPP levels.
 #
-# Usage (inside jpeg_ai_vm conda env or Docker container):
+# Usage (inside jpeg_ai_vm conda env):
 #   bash scripts/compress_dataset.sh <DATASET_DIR> <OUTPUT_DIR> [JPEGAI_ROOT]
 #
 # Args:
