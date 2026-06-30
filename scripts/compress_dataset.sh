@@ -24,11 +24,11 @@
 #     bpp_100/    (1.00 BPP)
 #     bpp_200/    (2.00 BPP)
 
-set -euo pipefail
+set -uo pipefail
 
 DATASET_DIR="${1:?Usage: $0 <DATASET_DIR> <OUTPUT_DIR> [JPEGAI_ROOT]}"
 OUTPUT_DIR="${2:?Usage: $0 <DATASET_DIR> <OUTPUT_DIR> [JPEGAI_ROOT]}"
-JPEGAI_ROOT="${3:-../jpeg-ai-reference-software}"
+JPEGAI_ROOT="${3:-../../jpeg-ai-reference-software/jpeg-ai-reference-software}"
 PROFILE="base"
 
 # BPP levels × 100 (JPEG AI CLI expects integer)
@@ -40,27 +40,71 @@ if [[ ! -d "$JPEGAI_ROOT" ]]; then
     exit 1
 fi
 
-# Collect all images
-mapfile -d '' IMAGES < <(find "$DATASET_DIR" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) -print0)
+# Max images per class (subdirectory). 0 = no limit.
+MAX_PER_CLASS="${MAX_PER_CLASS:-150}"
+
+# Collect images: sample MAX_PER_CLASS per first-level subdirectory (class)
+IMAGES=()
+while IFS= read -r -d '' CLASS_DIR; do
+    CLASS_IMAGES=()
+    mapfile -d '' CLASS_IMAGES < <(find "$CLASS_DIR" -maxdepth 1 -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) -print0 | sort -z)
+    if [[ $MAX_PER_CLASS -gt 0 && ${#CLASS_IMAGES[@]} -gt $MAX_PER_CLASS ]]; then
+        CLASS_IMAGES=("${CLASS_IMAGES[@]:0:$MAX_PER_CLASS}")
+    fi
+    IMAGES+=("${CLASS_IMAGES[@]}")
+    echo "  Class '$(basename "$CLASS_DIR")': ${#CLASS_IMAGES[@]} images selected"
+done < <(find "$DATASET_DIR" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
 
 if [[ ${#IMAGES[@]} -eq 0 ]]; then
     echo "ERROR: No images found in $DATASET_DIR"
     exit 1
 fi
 
-echo "Found ${#IMAGES[@]} images in $DATASET_DIR"
+N_IMAGES="${#IMAGES[@]}"
+N_BPP="${#BPP_VALUES[@]}"
+TOTAL=$(( N_IMAGES * N_BPP ))
+DONE=0
+OK_COUNT=0
+FAIL_COUNT=0
+SKIP_COUNT=0
+START_TS=$(date +%s)
+
+echo "Found $N_IMAGES images in $DATASET_DIR"
 echo "Output -> $OUTPUT_DIR"
 echo "Profile: $PROFILE"
 echo "BPP levels: ${BPP_VALUES[*]}"
+echo "Total operations: $TOTAL  ($N_IMAGES images × $N_BPP BPP levels)"
 echo "=========================================="
+
+# ── Progress bar helper ───────────────────────────────────────────────────────
+_progress() {
+    local current=$1 total=$2 ok=$3 fail=$4 skip=$5 label="$6"
+    local pct=$(( current * 100 / total ))
+    local filled=$(( pct * 40 / 100 ))
+    local bar=""
+    for (( i=0; i<filled; i++ )); do bar+="█"; done
+    for (( i=filled; i<40; i++ )); do bar+="░"; done
+
+    local elapsed=$(( $(date +%s) - START_TS ))
+    local eta="--"
+    if [[ $current -gt 0 ]]; then
+        local remaining=$(( elapsed * (total - current) / current ))
+        eta="$(printf '%02d:%02d' $(( remaining/60 )) $(( remaining%60 )))"
+    fi
+    local elapsed_fmt
+    elapsed_fmt="$(printf '%02d:%02d' $(( elapsed/60 )) $(( elapsed%60 )))"
+
+    printf "\r[%s] %3d%% (%d/%d) | ✓%d ✗%d ~%d | elapsed %s ETA %s | %s          " \
+        "$bar" "$pct" "$current" "$total" "$ok" "$fail" "$skip" \
+        "$elapsed_fmt" "$eta" "$label"
+}
 
 for BPP_X100 in "${BPP_VALUES[@]}"; do
     BPP_TAG="bpp_$(printf '%03d' "$BPP_X100")"
     BPP_DIR="$OUTPUT_DIR/$BPP_TAG"
     mkdir -p "$BPP_DIR"
 
-    echo ""
-    echo "--- Compressing at BPP=$BPP_X100/100 -> $BPP_DIR ---"
+    printf "\n\n--- BPP=%s/100 -> %s ---\n" "$BPP_X100" "$BPP_DIR"
 
     for IMG in "${IMAGES[@]}"; do
         # Preserve relative directory structure
@@ -73,11 +117,16 @@ for BPP_X100 in "${BPP_VALUES[@]}"; do
         BIN_PATH="$OUT_SUBDIR/${STEM}_bpp$(printf '%04d' "$BPP_X100").bin"
         PNG_PATH="$OUT_SUBDIR/${STEM}_bpp$(printf '%04d' "$BPP_X100").png"
 
+        DONE=$(( DONE + 1 ))
+
         # Skip if already done
         if [[ -f "$PNG_PATH" ]]; then
-            echo "  SKIP (exists): $REL_PATH"
+            SKIP_COUNT=$(( SKIP_COUNT + 1 ))
+            _progress "$DONE" "$TOTAL" "$OK_COUNT" "$FAIL_COUNT" "$SKIP_COUNT" "SKIP: $REL_PATH"
             continue
         fi
+
+        _progress "$DONE" "$TOTAL" "$OK_COUNT" "$FAIL_COUNT" "$SKIP_COUNT" "enc: $REL_PATH"
 
         # Convert to PNG if input is JPEG (JPEG AI requires PNG input)
         SRC_PNG="$IMG"
@@ -90,24 +139,41 @@ for BPP_X100 in "${BPP_VALUES[@]}"; do
             SRC_PNG="$TMP_PNG"
         fi
 
-        # Encode — must run from JPEGAI_ROOT with jpeg_ai_vm env active
-        conda run -n jpeg_ai_vm \
+        # Encode — must run from JPEGAI_ROOT; use absolute paths to avoid cwd issues
+        ABS_SRC_PNG="$(realpath "$SRC_PNG")"
+        ABS_BIN_PATH="$(realpath -m "$BIN_PATH")"
+        ABS_PNG_PATH="$(realpath -m "$PNG_PATH")"
+
+        if conda run -n jpeg_ai_vm \
             bash -c "cd '$JPEGAI_ROOT' && python -m src.reco.coders.encoder \
-                '$SRC_PNG' '$BIN_PATH' \
+                '$ABS_SRC_PNG' '$ABS_BIN_PATH' \
                 --set_target_bpp '$BPP_X100' \
-                --cfg cfg/tools_off.json cfg/profiles/${PROFILE}.json"
+                --cfg cfg/tools_off.json cfg/profiles/${PROFILE}.json" 2>/dev/null; then
 
-        # Decode
-        conda run -n jpeg_ai_vm \
-            bash -c "cd '$JPEGAI_ROOT' && python -m src.reco.coders.decoder \
-                '$BIN_PATH' '$PNG_PATH'"
+            _progress "$DONE" "$TOTAL" "$OK_COUNT" "$FAIL_COUNT" "$SKIP_COUNT" "dec: $REL_PATH"
 
-        # Remove bitstream to save space
-        rm -f "$BIN_PATH"
+            # Decode
+            if conda run -n jpeg_ai_vm \
+                bash -c "cd '$JPEGAI_ROOT' && python -m src.reco.coders.decoder \
+                    '$ABS_BIN_PATH' '$ABS_PNG_PATH'" 2>/dev/null; then
+                OK_COUNT=$(( OK_COUNT + 1 ))
+            else
+                FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+            fi
 
-        echo "  OK: $REL_PATH"
+            # Remove bitstream to save space
+            rm -f "$ABS_BIN_PATH"
+        else
+            FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+            rm -f "$ABS_BIN_PATH"
+        fi
+
+        _progress "$DONE" "$TOTAL" "$OK_COUNT" "$FAIL_COUNT" "$SKIP_COUNT" "$REL_PATH"
     done
 done
+
+printf "\n\n=========================================="
+printf "\nDone. OK=%d  FAIL=%d  SKIP=%d  Total=%d\n" "$OK_COUNT" "$FAIL_COUNT" "$SKIP_COUNT" "$TOTAL"
 
 echo ""
 echo "=========================================="

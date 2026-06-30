@@ -15,7 +15,10 @@ from pathlib import Path
 # Path to the cloned jpeg-ai-reference-software repo.
 # Override via env var JPEGAI_ROOT or pass explicitly.
 import os
-JPEGAI_ROOT = Path(os.environ.get("JPEGAI_ROOT", "jpeg-ai-reference-software"))
+JPEGAI_ROOT = Path(os.environ.get(
+    "JPEGAI_ROOT",
+    str(Path(__file__).resolve().parents[3] / "jpeg-ai-reference-software" / "jpeg-ai-reference-software")
+))
 
 # BPP levels used across the project (target_bpp values).
 BPP_LEVELS = [0.1, 0.3, 0.5, 0.8, 1.0, 2.0]
