@@ -218,6 +218,14 @@ __marimo__/
 .streamlit/secrets.toml
 
 *.mp4
-.python-version
 *.png
+*.bin
+*.csv
+*.pth
+
+.python-version
 Miniconda3-latest-Linux-x86_64.sh
+scripts/verify_bpp.sh
+scripts/stage_extra_images.sh
+scripts/check_missing.sh
+
