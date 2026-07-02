@@ -219,9 +219,6 @@ __marimo__/
 
 *.mp4
 *.png
-*.bin
-*.csv
-*.pth
 
 .python-version
 Miniconda3-latest-Linux-x86_64.sh
