@@ -92,6 +92,37 @@ jupyter notebook notebook.ipynb
 | **3 — Frequency analysis** | DCT histograms + azimuthal power spectra |
 | **4 — Mitigation** | Fine-tuning on augmented data; JPEG-augmentation baseline |
 
+## Experimental Results
+
+The project benchmarks detector baseline performance under neural compression and evaluates two mitigation strategies on ResNet50.
+
+### 1. Baseline Degradation Results
+| Backbone | BPP Level | AUC Score | Accuracy |
+|---|---|---|---|
+| **ResNet50** | original | 0.9999 | 99.92% |
+| **ResNet50** | 2.0 (High Q.) | 0.9543 | 86.35% |
+| **ResNet50** | 0.8 (Med Q.) | 0.9574 | 87.00% |
+| **ResNet50** | 0.1 (Low Q.) | 0.8896 | 79.80% |
+| **EfficientNet-B4** | original | 0.9999 | 99.77% |
+| **EfficientNet-B4** | 2.0 (High Q.) | 0.8437 | 75.30% |
+| **EfficientNet-B4** | 0.8 (Med Q.) | 0.8442 | 77.80% |
+| **EfficientNet-B4** | 0.1 (Low Q.) | 0.8518 | 74.60% |
+
+### 2. Mitigation Performance on ResNet50
+| BPP Level | Baseline Acc | MIT-1 Acc (Neural) | MIT-1 Gain (vs Base) | MIT-2 Acc (JPEG) | MIT-2 Gain (vs Base) |
+|---|---|---|---|---|---|
+| **original** | 99.92% | 99.92% | 0.00% | 99.97% | +0.05% |
+| **2.0 (High Q.)** | 86.35% | 87.35% | +1.00% | 80.32% | -6.03% |
+| **1.0** | 87.20% | 86.80% | -0.40% | 81.60% | -5.60% |
+| **0.8 (Med Q.)** | 87.00% | 87.20% | +0.20% | 81.20% | -5.80% |
+| **0.5** | 85.40% | 85.60% | +0.20% | 82.00% | -3.40% |
+| **0.3** | 83.60% | 86.60% | +3.00% | 82.40% | -1.20% |
+| **0.1 (Low Q.)** | 79.80% | 82.60% | +2.80% | 74.40% | -5.40% |
+
+*   **MIT-1 (JPEG AI Augmentation)** provides stable improvements under high compression (+2.80% at BPP=0.1).
+*   **MIT-2 (Standard JPEG Augmentation)** degrades accuracy across all BPP levels (down to -6.03% at BPP=2.0). Standard JPEG grid-based features are incompatible with JPEG AI's smooth neural convolutions.
+
 ## Reference
 
 E. D. Cannas et al., "Is JPEG AI Going to Change Image Forensics?", ICCVW 2025. DOI: 10.1109/ICCVW69036.2025.00167
+
