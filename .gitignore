@@ -229,3 +229,7 @@ scripts/verify_bpp.sh
 scripts/stage_extra_images.sh
 scripts/check_missing.sh
 
+.ipynb_checkpoints/
+*.ipynb-checkpoint
+~*
+
